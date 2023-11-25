@@ -1,5 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const config = require('./config/config-development.json');
+const db = require('./lib/database');
 const app = express();
 const port = 3000;
 
