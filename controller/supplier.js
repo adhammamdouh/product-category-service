@@ -1,70 +1,49 @@
-const Supplier = require('../models/supplier');
+const supplierService = require('../services/supplier');
 
 exports.createSupplier = async (req, res) => {
-    try {
-        const supplier = new Supplier(req.body);
-        await supplier.save();
-        res.status(201).send(supplier);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+  try {
+    const supplier = await supplierService.createSupplier(req.body);
+    res.status(201).send(supplier);
+  } catch (error) {
+    res.status(400).send({ error: error.message });
+  }
 };
 
 exports.getSuppliers = async (req, res) => {
-    try {
-        const suppliers = await Supplier.find();
-        res.send(suppliers);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+  try {
+    const suppliers = await supplierService.getSuppliers();
+    res.send(suppliers);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
 };
 
 exports.getSupplierById = async (req, res) => {
-    try {
-        const supplier = await Supplier.findById(req.params.id);
-        if (!supplier) {
-            return res.status(404).send();
-        }
-        res.send(supplier);
-    } catch (error) {
-        res.status(500).send(error);
+  try {
+    const supplier = await supplierService.getSupplierById(req.params.id);
+    if (!supplier) {
+      return res.status(404).send({ error: 'Supplier not found' });
     }
+    res.send(supplier);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
 };
 
 exports.updateSupplierById = async (req, res) => {
-    const updates = Object.keys(req.body);
-    const allowedUpdates = ['name', 'contactInfo'];
-    const isValidOperation = updates.every((update) => allowedUpdates.includes(update));
-
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Invalid updates!' });
-    }
-
-    try {
-        const supplier = await Supplier.findById(req.params.id);
-
-        if (!supplier) {
-            return res.status(404).send();
-        }
-
-        updates.forEach((update) => (supplier[update] = req.body[update]));
-        await supplier.save();
-        res.send(supplier);
-    } catch (error) {
-        res.status(400).send(error);
-    }
+  try {
+    const supplier = await supplierService.updateSupplierById(req.params.id, req.body);
+    res.send(supplier);
+  } catch (error) {
+    res.status(400).send({ error: error.message });
+  }
 };
 
 exports.deleteSupplierById = async (req, res) => {
-    try {
-        const supplier = await Supplier.findByIdAndDelete(req.params.id);
-
-        if (!supplier) {
-            return res.status(404).send();
-        }
-
-        res.send(supplier);
-    } catch (error) {
-        res.status(500).send(error);
-    }
+  try {
+    const supplier = await supplierService.deleteSupplierById(req.params.id);
+    res.send(supplier);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
 };
