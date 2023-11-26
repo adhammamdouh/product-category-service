@@ -6,8 +6,8 @@ exports.createProduct = async (productData) => {
     try {
         const product = new Product(productData);
         await product.save();
-        await elastic.indexDocument(Constants.ELASTIC_INDEX_NAME, productData, product.id)
-        return productData;
+        await elastic.indexDocument(Constants.ELASTIC_INDEX_NAME, product.id, productData)
+        return product;
     } catch (error) {
         throw new Error('Could not create the product: ' + error.message);
     }
@@ -51,6 +51,7 @@ exports.updateProductById = async (productId, updates) => {
 
         Object.keys(updates).forEach((update) => (product[update] = updates[update]));
         await product.save();
+        await elastic.updateDocument(Constants.ELASTIC_INDEX_NAME, productId, updates)
         return product;
     } catch (error) {
         throw new Error('Could not update the product: ' + error.message);
@@ -102,5 +103,4 @@ function getProductElasticMapping() {
             supplier: { type: 'keyword' },
         },
     };
-
 }
