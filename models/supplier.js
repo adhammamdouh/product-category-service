@@ -1,12 +1,11 @@
 const mongoose = require('mongoose');
 
 const supplierSchema = new mongoose.Schema({
-  supplierId: String,
-  name: String,
+  name: { type: String, required: true },
   contactInfo: {
-    address: String,
-    email: String,
-    phone: String,
+    address: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String, required: true },
   },
 });
 
