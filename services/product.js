@@ -15,7 +15,7 @@ exports.createProduct = async (productData) => {
 
 exports.getProducts = async () => {
     try {
-        const products = await Product.find();
+        const products = elastic.getAllDocuments(Constants.ELASTIC_INDEX_NAME)//await Product.find();
         return products;
     } catch (error) {
         throw new Error('Could not fetch products: ' + error.message);
@@ -72,6 +72,20 @@ exports.deleteProductById = async (productId) => {
     }
 };
 
+exports.getProductsByFilter = async (query) => {
+    var esQuery = getESQuery(query);
+
+    const products = await elastic.searchDocuments(
+        Constants.ELASTIC_INDEX_NAME, esQuery,
+        `if (doc['your_boolean_field'].value == true) {
+            return 1;
+        } else {
+            return 2;
+        }`
+    );
+    return products
+}
+
 exports.createElasticIndex = async () => {
     try {
         const { body } = await elastic.createIndex(Constants.ELASTIC_INDEX_NAME, getProductElasticMapping())
@@ -103,4 +117,41 @@ function getProductElasticMapping() {
             supplier: { type: 'keyword' },
         },
     };
+}
+
+function getESQuery(query) {
+    const mustClauses = [];
+    if (query.text !== undefined) {
+        mustClauses.push({
+            multi_match: {
+                query: query.text,
+                fields: ['name', 'description'],
+            },
+        });
+    }
+    if (query.category !== undefined) {
+        mustClauses.push({
+            match_phrase: {
+                categoryId: query.category,
+            },
+        });
+    }
+    if (query.supplier !== undefined) {
+        mustClauses.push({
+            match_phrase: {
+                supplierId: query.supplier,
+            },
+        });
+    }
+    if (query.price !== undefined) {
+        mustClauses.push({
+            range: {
+                price: {
+                    gte: query.price,
+                    lte: query.price + 0.01
+                }
+            }
+        });
+    }
+    return mustClauses;
 }
