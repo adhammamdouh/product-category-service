@@ -15,7 +15,7 @@ exports.createProduct = async (productData) => {
 
 exports.getProducts = async () => {
     try {
-        const products = elastic.getAllDocuments(Constants.ELASTIC_INDEX_NAME)//await Product.find();
+        const products = await Product.find();
         return products;
     } catch (error) {
         throw new Error('Could not fetch products: ' + error.message);
@@ -35,7 +35,7 @@ exports.getProductById = async (productId) => {
 };
 
 exports.updateProductById = async (productId, updates) => {
-    const allowedUpdates = ['name', 'description', 'price', 'category', 'variants', 'supplier'];
+    const allowedUpdates = ['name', 'description', 'price', 'category', 'variants', 'supplier', 'bestSelling'];
     const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
 
     if (!isValidOperation) {
@@ -75,13 +75,15 @@ exports.deleteProductById = async (productId) => {
 exports.getProductsByFilter = async (query) => {
     var esQuery = getESQuery(query);
 
-    const products = await elastic.searchDocuments(
-        Constants.ELASTIC_INDEX_NAME, esQuery,
-        `if (doc['your_boolean_field'].value == true) {
-            return 1;
-        } else {
-            return 2;
-        }`
+    const products = mapESProductsToProduct(
+        await elastic.searchDocuments(
+            Constants.ELASTIC_INDEX_NAME, esQuery,
+            {
+                bestSelling: {
+                    order: 'desc',
+                },
+            },
+        )
     );
     return products
 }
@@ -100,6 +102,7 @@ function getProductElasticMapping() {
             name: { type: 'text' },
             description: { type: 'text' },
             price: { type: 'double' },
+            bestSelling: { type: 'boolean' },
             category: { type: 'keyword' },
             variants: {
                 type: 'nested',
@@ -154,4 +157,54 @@ function getESQuery(query) {
         });
     }
     return mustClauses;
+}
+
+function mapESProductsToProduct(esProducts) {
+    mappedProducts = esProducts.map((elasticsearchProduct) => {
+        var {
+            _id,
+            _source: {
+                name,
+                description,
+                price,
+                categoryId,
+                variants,
+                supplierId,
+                bestSelling,
+            },
+        } = elasticsearchProduct;
+
+        mappedVariants = variants.map((variant) => {
+            var {
+                attributes,
+                price: variantPrice,
+            } = variant;
+
+            mappedAttributes = attributes.map((attribute) => {
+                var { key, value } = attribute;
+                return {
+                    key,
+                    value,
+                };
+            });
+
+            return {
+                attributes: mappedAttributes,
+                price: variantPrice,
+            };
+        });
+
+        return {
+            _id,
+            name,
+            description,
+            price,
+            categoryId,
+            variants: mappedVariants,
+            supplierId,
+            bestSelling,
+        };
+    });
+
+    return mappedProducts;
 }
