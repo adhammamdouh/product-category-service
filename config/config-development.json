@@ -3,5 +3,9 @@
         "host": "mongodb",
         "port": "27017",
         "database": "product_category"
+    },
+    "elasticsearchConfig": {
+        "host": "elasticsearch",
+        "port": "9200"
     }
 }
