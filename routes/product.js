@@ -17,4 +17,7 @@ router.patch('/products/:id', productController.updateProductById);
 // Delete a product by ID
 router.delete('/products/:id', productController.deleteProductById);
 
+// Filter all products by a filter query
+router.post('/products/filter', productController.getProductsByFilter);
+
 module.exports = router;

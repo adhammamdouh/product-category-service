@@ -47,3 +47,12 @@ exports.deleteProductById = async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 };
+
+exports.getProductsByFilter = async (req, res) => {
+  try {
+    const product = await productService.getProductsByFilter(req.body);
+    res.send(product);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+}

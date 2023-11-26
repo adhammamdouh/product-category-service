@@ -35,7 +35,7 @@ exports.getProductById = async (productId) => {
 };
 
 exports.updateProductById = async (productId, updates) => {
-    const allowedUpdates = ['name', 'description', 'price', 'category', 'variants', 'supplier'];
+    const allowedUpdates = ['name', 'description', 'price', 'category', 'variants', 'supplier', 'bestSelling'];
     const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
 
     if (!isValidOperation) {
@@ -72,6 +72,22 @@ exports.deleteProductById = async (productId) => {
     }
 };
 
+exports.getProductsByFilter = async (query) => {
+    var esQuery = getESQuery(query);
+
+    const products = mapESProductsToProduct(
+        await elastic.searchDocuments(
+            Constants.ELASTIC_INDEX_NAME, esQuery,
+            {
+                bestSelling: {
+                    order: 'desc',
+                },
+            },
+        )
+    );
+    return products
+}
+
 exports.createElasticIndex = async () => {
     try {
         const { body } = await elastic.createIndex(Constants.ELASTIC_INDEX_NAME, getProductElasticMapping())
@@ -86,6 +102,7 @@ function getProductElasticMapping() {
             name: { type: 'text' },
             description: { type: 'text' },
             price: { type: 'double' },
+            bestSelling: { type: 'boolean' },
             category: { type: 'keyword' },
             variants: {
                 type: 'nested',
@@ -103,4 +120,91 @@ function getProductElasticMapping() {
             supplier: { type: 'keyword' },
         },
     };
+}
+
+function getESQuery(query) {
+    const mustClauses = [];
+    if (query.text !== undefined) {
+        mustClauses.push({
+            multi_match: {
+                query: query.text,
+                fields: ['name', 'description'],
+            },
+        });
+    }
+    if (query.category !== undefined) {
+        mustClauses.push({
+            match_phrase: {
+                categoryId: query.category,
+            },
+        });
+    }
+    if (query.supplier !== undefined) {
+        mustClauses.push({
+            match_phrase: {
+                supplierId: query.supplier,
+            },
+        });
+    }
+    if (query.price !== undefined) {
+        mustClauses.push({
+            range: {
+                price: {
+                    gte: query.price,
+                    lte: query.price + 0.01
+                }
+            }
+        });
+    }
+    return mustClauses;
+}
+
+function mapESProductsToProduct(esProducts) {
+    mappedProducts = esProducts.map((elasticsearchProduct) => {
+        var {
+            _id,
+            _source: {
+                name,
+                description,
+                price,
+                categoryId,
+                variants,
+                supplierId,
+                bestSelling,
+            },
+        } = elasticsearchProduct;
+
+        mappedVariants = variants.map((variant) => {
+            var {
+                attributes,
+                price: variantPrice,
+            } = variant;
+
+            mappedAttributes = attributes.map((attribute) => {
+                var { key, value } = attribute;
+                return {
+                    key,
+                    value,
+                };
+            });
+
+            return {
+                attributes: mappedAttributes,
+                price: variantPrice,
+            };
+        });
+
+        return {
+            _id,
+            name,
+            description,
+            price,
+            categoryId,
+            variants: mappedVariants,
+            supplierId,
+            bestSelling,
+        };
+    });
+
+    return mappedProducts;
 }
