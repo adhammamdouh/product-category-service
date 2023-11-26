@@ -9,4 +9,4 @@ RUN npm install
 COPY . ./
 EXPOSE 3000
 
-ENTRYPOINT ["npm", "start"]
+ENTRYPOINT ["sh", "-c", "sleep 30 && npm start"]

@@ -14,9 +14,9 @@ services:
       - nodeapp-network
     volumes:
       - ./logs:/var/www/logs
-
     depends_on:
       - mongodb
+      - elasticsearch
 
   mongodb:
     container_name: mongodb
@@ -25,6 +25,16 @@ services:
       - nodeapp-network
     ports:
       - "27017:27017"
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.13
+    environment:
+      - discovery.type=single-node
+    networks:
+      - nodeapp-network
+    ports:
+      - "9200:9200"
 
 networks:
   nodeapp-network:
