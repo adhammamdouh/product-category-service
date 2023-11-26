@@ -1,0 +1,7 @@
+{
+    "databaseConfig": {
+        "host": "mongodb",
+        "port": "27017",
+        "database": "amazon_dev"
+    }
+}
