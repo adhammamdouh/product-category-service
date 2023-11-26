@@ -66,6 +66,7 @@ exports.deleteProductById = async (productId) => {
             throw new Error('Product not found');
         }
 
+        elastic.deleteDocument(Constants.ELASTIC_INDEX_NAME, productId)
         return product;
     } catch (error) {
         throw new Error('Could not delete the product: ' + error.message);
