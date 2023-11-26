@@ -1,14 +1,18 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const config = require('./config/config-development.json');
-const db = require('./lib/database');
 const app = express();
 const port = 3000;
 
+const supplierRoutes = require('./Routes/supplier');
+const categoryRoutes = require('./Routes/category');
+const productRoutes = require('./Routes/product');
+
+app.use('/api', supplierRoutes);
+app.use('/api', categoryRoutes);
+app.use('/api', productRoutes);
+
 app.get('/', (req, res) => {
-  res.send('Hello World!');
+  res.send('Product Category Service is working!');
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening at http://localhost:${port}`);
-});
+app.listen(port);
