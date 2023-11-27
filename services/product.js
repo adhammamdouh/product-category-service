@@ -76,7 +76,7 @@ exports.deleteProductById = async (productId) => {
 exports.getProductsByFilter = async (query) => {
     var esQuery = getESQuery(query);
 
-    const products = mapESProductsToProduct(
+    const products = mapESProductsToProducts(
         await elastic.searchDocuments(
             Constants.ELASTIC_INDEX_NAME, esQuery,
             {
@@ -88,7 +88,7 @@ exports.getProductsByFilter = async (query) => {
             },
         )
     );
-    return products
+    return products;
 }
 
 exports.createElasticIndex = async () => {
@@ -102,11 +102,11 @@ exports.createElasticIndex = async () => {
 function getProductElasticMapping() {
     return {
         properties: {
-            name: { type: 'text' },
-            description: { type: 'text' },
+            name: { type: 'text', analyzer: "edge_ngram_analyzer" },
+            description: { type: 'text', analyzer: "edge_ngram_analyzer" },
             price: { type: 'double' },
             bestSelling: { type: 'boolean' },
-            category: { type: 'keyword' },
+            categoryId: { type: 'keyword' },
             variants: {
                 type: 'nested',
                 properties: {
@@ -120,21 +120,35 @@ function getProductElasticMapping() {
                     price: { type: 'double' },
                 },
             },
-            supplier: { type: 'keyword' },
+            supplierId: { type: 'keyword' },
         },
     };
 }
 
 function getESQuery(query) {
     const mustClauses = [];
-    if (query.text !== undefined) {
+
+    addTextClause(query, mustClauses);
+    addCategoryClause(query, mustClauses);
+    addSupplierClause(query, mustClauses);
+    addPriceClause(query, mustClauses);
+    addVariantsClause(query, mustClauses);
+
+    return mustClauses;
+}
+
+function addTextClause(query, mustClauses) {
+    if (query.text !== undefined && query.text.trim() !== '') {
         mustClauses.push({
-            multi_match: {
-                query: query.text,
+            query_string: {
+                query: `*${query.text}*`,
                 fields: ['name', 'description'],
             },
         });
     }
+}
+
+function addCategoryClause(query, mustClauses) {
     if (query.category !== undefined) {
         mustClauses.push({
             match_phrase: {
@@ -142,6 +156,9 @@ function getESQuery(query) {
             },
         });
     }
+}
+
+function addSupplierClause(query, mustClauses) {
     if (query.supplier !== undefined) {
         mustClauses.push({
             match_phrase: {
@@ -149,20 +166,67 @@ function getESQuery(query) {
             },
         });
     }
+}
+
+function addPriceClause(query, mustClauses) {
     if (query.price !== undefined) {
         mustClauses.push({
             range: {
                 price: {
                     gte: query.price,
-                    lte: query.price + 0.01
-                }
-            }
+                    lte: query.price + 0.01,
+                },
+            },
         });
     }
-    return mustClauses;
 }
 
-function mapESProductsToProduct(esProducts) {
+function addVariantsClause(query, mustClauses) {
+    if (query.variants && query.variants.attributes && query.variants.attributes.length > 0) {
+        const variantShouldClauses = query.variants.attributes.map((attribute) => createAttributeClause(attribute));
+        mustClauses.push(createNestedVariantsClause(variantShouldClauses));
+    }
+}
+
+function createAttributeClause(attribute) {
+    return {
+        "nested": {
+            "path": "variants.attributes",
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match_phrase": {
+                                "variants.attributes.key": attribute.key,
+                            },
+                        },
+                        {
+                            "match_phrase": {
+                                "variants.attributes.value": attribute.value,
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+    };
+}
+
+function createNestedVariantsClause(variantShouldClauses) {
+    return {
+        "nested": {
+            "path": "variants",
+            "query": {
+                bool: {
+                    should: variantShouldClauses,
+                    minimum_should_match: 1,
+                },
+            },
+        },
+    };
+}
+
+function mapESProductsToProducts(esProducts) {
     mappedProducts = esProducts.map((elasticsearchProduct) => {
         var {
             _id,
