@@ -1,12 +1,18 @@
 const Product = require('../models/product');
+const Category = require('./category')
+const Supplier = require('./supplier')
 const Constants = require('../constants/product')
 const elastic = require('../lib/elasticsearch')
 
 exports.createProduct = async (productData) => {
     try {
-        const product = new Product(productData);
+        const sanitizedProductData = sanitizeProductUpdates(productData);
+
+        await validateProductUpdates(sanitizedProductData);
+
+        const product = new Product(sanitizedProductData);
         await product.save();
-        await elastic.indexDocument(Constants.ELASTIC_INDEX_NAME, product.id, productData)
+        await elastic.indexDocument(Constants.ELASTIC_INDEX_NAME, product.id, sanitizedProductData);
         return product;
     } catch (error) {
         throw new Error('Could not create the product: ' + error.message);
@@ -35,7 +41,7 @@ exports.getProductById = async (productId) => {
 };
 
 exports.updateProductById = async (productId, updates) => {
-    const allowedUpdates = ['name', 'description', 'price', 'category', 'variants', 'supplier', 'bestSelling'];
+    const allowedUpdates = ['name', 'description', 'price', 'categoryId', 'variants', 'supplierId', 'bestSelling'];
     const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
 
     if (!isValidOperation) {
@@ -49,9 +55,15 @@ exports.updateProductById = async (productId, updates) => {
             throw new Error('Product not found');
         }
 
+        const sanitizedUpdates = sanitizeProductUpdates(updates);
+
+        await validateProductUpdates(sanitizedUpdates);
+
+        Object.keys(sanitizedUpdates).forEach((update) => (product[update] = sanitizedUpdates[update]));
+
         Object.keys(updates).forEach((update) => (product[update] = updates[update]));
         await product.save();
-        await elastic.updateDocument(Constants.ELASTIC_INDEX_NAME, productId, updates)
+        await elastic.updateDocument(Constants.ELASTIC_INDEX_NAME, productId, updates);
         return product;
     } catch (error) {
         throw new Error('Could not update the product: ' + error.message);
@@ -275,3 +287,56 @@ function mapESProductsToProducts(esProducts) {
 
     return mappedProducts;
 }
+
+function sanitizeProductUpdates(updates) {
+    const sanitizedUpdates = {};
+
+    const replaceSpecialChars = (value) => {
+        return value.replace(/[^\w\s]/gi, ' ');
+    };
+
+    if (updates.name) {
+        sanitizedUpdates.name = replaceSpecialChars(updates.name.substring(0, 100)).trim();
+    }
+
+    if (updates.description) {
+        sanitizedUpdates.description = replaceSpecialChars(updates.description.substring(0, 250)).trim();
+    }
+
+    if (updates.price !== undefined) {
+        const updatedPrice = parseFloat(updates.price);
+        if (!isNaN(updatedPrice) && updatedPrice >= 0) {
+            sanitizedUpdates.price = updatedPrice;
+        } else {
+            throw new Error('Invalid price! Price must be a non-negative numeric value.');
+        }
+    }
+    sanitizedUpdates.categoryId = updates.categoryId
+    sanitizedUpdates.supplierId = updates.supplierId
+    sanitizedUpdates.variants = updates.variants
+    return sanitizedUpdates;
+};
+
+async function validateProductUpdates(product) {
+    if (product.categoryId) {
+        try {
+            await Category.getCategoryById(product.categoryId)
+        } catch (error) {
+            throw new Error('Invalid CategoryId')
+        }
+    }
+
+    if (product.supplierId) {
+        try {
+            await Supplier.getSupplierById(product.supplierId)
+        } catch (error) {
+            throw new Error('Invalid SupplierId')
+        }
+    }
+
+    if (product.variants) {
+        if (!Array.isArray(product.variants)) {
+            throw new Error('Invalid variants! Variants must be an array.');
+        }
+    }
+};
