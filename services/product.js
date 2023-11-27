@@ -82,6 +82,8 @@ exports.getProductsByFilter = async (query) => {
             {
                 bestSelling: {
                     order: 'desc',
+                    unmapped_type: 'boolean',
+                    missing: 0
                 },
             },
         )
