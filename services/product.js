@@ -61,9 +61,8 @@ exports.updateProductById = async (productId, updates) => {
 
         Object.keys(sanitizedUpdates).forEach((update) => (product[update] = sanitizedUpdates[update]));
 
-        Object.keys(updates).forEach((update) => (product[update] = updates[update]));
         await product.save();
-        await elastic.updateDocument(Constants.ELASTIC_INDEX_NAME, productId, updates);
+        await elastic.updateDocument(Constants.ELASTIC_INDEX_NAME, productId, sanitizedUpdates);
         return product;
     } catch (error) {
         throw new Error('Could not update the product: ' + error.message);
@@ -311,11 +310,18 @@ function sanitizeProduct(product) {
             throw new Error('Invalid price! Price must be a non-negative numeric value.');
         }
     }
-    sanitizedProduct.categoryId = product.categoryId
-    sanitizedProduct.supplierId = product.supplierId
-    sanitizedProduct.variants = product.variants
-
-    if (product.bestSelling !== undefined) {
+    if (product.categoryId) {
+        sanitizedProduct.categoryId = product.categoryId
+    }
+    if (product.supplierId) {
+        sanitizedProduct.supplierId = product.supplierId
+    }
+    if (product.variants) {
+        sanitizedProduct.variants = product.variants
+    }
+    console.log('before multimplication' + product.bestSelling);
+    if (product.bestSelling) {
+        console.log('multiplying by 1000');
         sanitizedProduct.bestSelling = product.bestSelling * 1000
     }
 
@@ -343,8 +349,5 @@ async function validateProduct(product) {
         if (!Array.isArray(product.variants)) {
             throw new Error('Invalid variants! Variants must be an array.');
         }
-    }
-    if (product.bestSelling !== undefined) {
-        sanitizedProduct.bestSelling = product.bestSelling * 1000
     }
 };
