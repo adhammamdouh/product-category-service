@@ -194,7 +194,11 @@ function addPriceClause(query, mustClauses) {
 
 function addVariantsClause(query, mustClauses) {
     if (query.variants && query.variants.attributes && query.variants.attributes.length > 0) {
-        const variantShouldClauses = query.variants.attributes.map((attribute) => createAttributeClause(attribute));
+        const variantShouldClauses = query.variants.attributes
+        .map((attribute) => (
+          attribute.value && attribute.key ? createAttributeClause(attribute) : null
+        ))
+        .filter(Boolean);
         mustClauses.push(createNestedVariantsClause(variantShouldClauses));
     }
 }
