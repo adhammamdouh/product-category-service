@@ -2,7 +2,7 @@
     "databaseConfig": {
         "host": "mongodb",
         "port": "27017",
-        "database": "product_category"
+        "database": "catalog"
     },
     "elasticsearchConfig": {
         "host": "elasticsearch",

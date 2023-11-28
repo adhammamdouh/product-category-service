@@ -6,9 +6,9 @@ const elastic = require('../lib/elasticsearch')
 
 exports.createProduct = async (productData) => {
     try {
-        const sanitizedProductData = sanitizeProductUpdates(productData);
+        const sanitizedProductData = sanitizeProduct(productData);
 
-        await validateProductUpdates(sanitizedProductData);
+        await validateProduct(sanitizedProductData);
 
         const product = new Product(sanitizedProductData);
         await product.save();
@@ -55,9 +55,9 @@ exports.updateProductById = async (productId, updates) => {
             throw new Error('Product not found');
         }
 
-        const sanitizedUpdates = sanitizeProductUpdates(updates);
+        const sanitizedUpdates = sanitizeProduct(updates);
 
-        await validateProductUpdates(sanitizedUpdates);
+        await validateProduct(sanitizedUpdates);
 
         Object.keys(sanitizedUpdates).forEach((update) => (product[update] = sanitizedUpdates[update]));
 
@@ -94,7 +94,7 @@ exports.getProductsByFilter = async (query) => {
             {
                 bestSelling: {
                     order: 'desc',
-                    unmapped_type: 'boolean',
+                    unmapped_type: 'date',
                     missing: 0
                 },
             },
@@ -117,7 +117,7 @@ function getProductElasticMapping() {
             name: { type: 'text', analyzer: "edge_ngram_analyzer" },
             description: { type: 'text', analyzer: "edge_ngram_analyzer" },
             price: { type: 'double' },
-            bestSelling: { type: 'boolean' },
+            bestSelling: { type: 'date' },
             categoryId: { type: 'keyword' },
             variants: {
                 type: 'nested',
@@ -202,18 +202,18 @@ function addVariantsClause(query, mustClauses) {
 
 function createAttributeClause(attribute) {
     return {
-        "nested": {
-            "path": "variants.attributes",
-            "query": {
-                "bool": {
-                    "must": [
+        nested: {
+            path: "variants.attributes",
+            query: {
+                bool: {
+                    must: [
                         {
-                            "match_phrase": {
+                            match_phrase: {
                                 "variants.attributes.key": attribute.key,
                             },
                         },
                         {
-                            "match_phrase": {
+                            match_phrase: {
                                 "variants.attributes.value": attribute.value,
                             },
                         },
@@ -226,9 +226,9 @@ function createAttributeClause(attribute) {
 
 function createNestedVariantsClause(variantShouldClauses) {
     return {
-        "nested": {
-            "path": "variants",
-            "query": {
+        nested: {
+            path: "variants",
+            query: {
                 bool: {
                     should: variantShouldClauses,
                     minimum_should_match: 1,
@@ -288,36 +288,41 @@ function mapESProductsToProducts(esProducts) {
     return mappedProducts;
 }
 
-function sanitizeProductUpdates(updates) {
-    const sanitizedUpdates = {};
+function sanitizeProduct(product) {
+    const sanitizedProduct = {};
 
     const replaceSpecialChars = (value) => {
         return value.replace(/[^\w\s]/gi, ' ');
     };
 
-    if (updates.name) {
-        sanitizedUpdates.name = replaceSpecialChars(updates.name.substring(0, 100)).trim();
+    if (product.name) {
+        sanitizedProduct.name = replaceSpecialChars(product.name.substring(0, 100)).trim();
     }
 
-    if (updates.description) {
-        sanitizedUpdates.description = replaceSpecialChars(updates.description.substring(0, 250)).trim();
+    if (product.description) {
+        sanitizedProduct.description = replaceSpecialChars(product.description.substring(0, 250)).trim();
     }
 
-    if (updates.price !== undefined) {
-        const updatedPrice = parseFloat(updates.price);
+    if (product.price !== undefined) {
+        const updatedPrice = parseFloat(product.price);
         if (!isNaN(updatedPrice) && updatedPrice >= 0) {
-            sanitizedUpdates.price = updatedPrice;
+            sanitizedProduct.price = updatedPrice;
         } else {
             throw new Error('Invalid price! Price must be a non-negative numeric value.');
         }
     }
-    sanitizedUpdates.categoryId = updates.categoryId
-    sanitizedUpdates.supplierId = updates.supplierId
-    sanitizedUpdates.variants = updates.variants
-    return sanitizedUpdates;
+    sanitizedProduct.categoryId = product.categoryId
+    sanitizedProduct.supplierId = product.supplierId
+    sanitizedProduct.variants = product.variants
+
+    if (product.bestSelling !== undefined) {
+        sanitizedProduct.bestSelling = product.bestSelling * 1000
+    }
+
+    return sanitizedProduct;
 };
 
-async function validateProductUpdates(product) {
+async function validateProduct(product) {
     if (product.categoryId) {
         try {
             await Category.getCategoryById(product.categoryId)
@@ -338,5 +343,8 @@ async function validateProductUpdates(product) {
         if (!Array.isArray(product.variants)) {
             throw new Error('Invalid variants! Variants must be an array.');
         }
+    }
+    if (product.bestSelling !== undefined) {
+        sanitizedProduct.bestSelling = product.bestSelling * 1000
     }
 };
